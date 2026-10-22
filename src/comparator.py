@@ -10,10 +10,9 @@ from .normalizer import (
     normalize_invoice_number,
 )
 from .matcher import (
-    BASE_FISCAL_PATH,
-    NF_FISCAL_ENTRADA_PATH,
     analyze_all_records,
-    load_records,
+    load_daily_cigam_records,
+    load_relevant_base_records,
 )
 from .comparison_rules import (
     RULE_COMPARE,
@@ -472,34 +471,28 @@ def print_summary(
 
 
 def main():
-
-    print("Carregando Base Fiscal...")
-
-    base_records = load_records(
-        BASE_FISCAL_PATH
+    print(
+        "Carregando registros diários do CIGAM..."
     )
 
-    print("Carregando CIGAM...")
-
-    cigam_records = load_records(
-        NF_FISCAL_ENTRADA_PATH
+    cigam_records, target_date = (
+        load_daily_cigam_records()
     )
 
-    print("Executando matching um-para-um...")
-
-    matching_results = analyze_all_records(
-        base_records,
-        cigam_records,
+    print(
+        f"Data considerada: "
+        f"{target_date.strftime('%d/%m/%Y')}"
     )
 
-    print("Comparando campos fiscais...")
-
-    comparison_results = compare_matched_records(
-        matching_results
+    print(
+        "Carregando registros relevantes "
+        "da Base Fiscal..."
     )
 
-    print_summary(
-        comparison_results
+    base_records = (
+        load_relevant_base_records(
+            cigam_records
+        )
     )
 
 

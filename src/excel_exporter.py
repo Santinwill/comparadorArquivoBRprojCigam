@@ -17,10 +17,9 @@ from .comparator import (
     compare_matched_records,
 )
 from .matcher import (
-    BASE_FISCAL_PATH,
-    NF_FISCAL_ENTRADA_PATH,
     analyze_all_records,
-    load_records,
+    load_daily_cigam_records,
+    load_relevant_base_records,
 )
 
 
@@ -1125,17 +1124,54 @@ def main():
         exist_ok=True,
     )
 
-    print("Carregando Base Fiscal...")
-
-    base_records = load_records(
-        BASE_FISCAL_PATH
+    print(
+        "Carregando registros do CIGAM "
+        "referentes ao dia anterior..."
     )
 
-    print("Carregando CIGAM...")
-
-    cigam_records = load_records(
-        NF_FISCAL_ENTRADA_PATH
+    cigam_records, target_date = (
+        load_daily_cigam_records()
     )
+
+    print(
+        f"Data de entrada considerada: "
+        f"{target_date.strftime('%d/%m/%Y')}"
+    )
+
+    print(
+        f"Registros CIGAM encontrados: "
+        f"{len(cigam_records)}"
+    )
+
+    if cigam_records:
+
+        print(
+            "Carregando somente os registros relevantes "
+            "da Base Fiscal..."
+        )
+
+        base_records = (
+            load_relevant_base_records(
+                cigam_records
+            )
+        )
+
+        print(
+            f"Registros relevantes da Base Fiscal: "
+            f"{len(base_records)}"
+        )
+
+    else:
+
+        print(
+            "Nenhum registro encontrado para a data."
+        )
+
+        print(
+            "A Base Fiscal não será carregada."
+        )
+
+        base_records = []
 
     print("Executando matching...")
 
@@ -1171,6 +1207,11 @@ def main():
 
     print()
     print(
+        f"Data processada: "
+        f"{target_date.strftime('%d/%m/%Y')}"
+    )
+
+    print(
         f"Differences: "
         f"{len(comparison_results['divergent'])}"
     )
@@ -1194,7 +1235,6 @@ def main():
         f"Unused Base: "
         f"{len(comparison_results['unused_base'])}"
     )
-
 
 if __name__ == "__main__":
     main()

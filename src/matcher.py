@@ -1,4 +1,5 @@
 from collections import defaultdict
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 from openpyxl import load_workbook
@@ -20,7 +21,43 @@ SHEET_NAME = "Export"
 EXAMPLE_LIMIT = 10
 
 
-def load_records(file_path: Path) -> list[dict]:
+def convert_to_date(value: Any) -> date | None:
+    if value is None or value == "":
+        return None
+
+    if isinstance(value, datetime):
+        return value.date()
+
+    if isinstance(value, date):
+        return value
+
+    text_value = str(value).strip()
+
+    date_formats = (
+        "%d/%m/%Y",
+        "%Y-%m-%d",
+        "%m/%d/%Y",
+        "%Y-%m-%d %H:%M:%S",
+    )
+
+    for date_format in date_formats:
+
+        try:
+            return datetime.strptime(
+                text_value,
+                date_format,
+            ).date()
+
+        except ValueError:
+            continue
+
+    return None
+
+
+def load_records(
+    file_path: Path,
+    record_filter=None,
+) -> list[dict]:
     if not file_path.exists():
         raise FileNotFoundError(
             f"Arquivo não encontrado: {file_path}"
@@ -41,13 +78,18 @@ def load_records(file_path: Path) -> list[dict]:
 
         worksheet = workbook[SHEET_NAME]
 
-        rows = worksheet.iter_rows(values_only=True)
+        rows = worksheet.iter_rows(
+            values_only=True
+        )
+
         headers = next(rows)
 
         records = []
 
-        for excel_row_number, row in enumerate(rows, start=2):
-
+        for excel_row_number, row in enumerate(
+            rows,
+            start=2,
+        ):
             record = {}
 
             for index, header in enumerate(headers):
@@ -55,20 +97,26 @@ def load_records(file_path: Path) -> list[dict]:
                 if header is None:
                     continue
 
-                # A Base Fiscal possui um cabeçalho duplicado.
+                # Ignora cabeçalhos duplicados
                 if header in record:
                     continue
 
                 record[header] = row[index]
 
             record["_EXCEL_ROW"] = excel_row_number
+
+            if record_filter is not None:
+
+                if not record_filter(record):
+                    continue
+
             records.append(record)
 
         return records
 
     finally:
         workbook.close()
-
+        
 
 def build_invoice_date_key(
     record: dict,
@@ -88,6 +136,64 @@ def build_invoice_date_key(
         invoice_key[1],
         invoice_key[2],
         emission_date,
+    )
+
+
+def load_daily_cigam_records(
+    reference_date: date | None = None,
+) -> tuple[list[dict], date]:
+    execution_date = (
+        reference_date
+        if reference_date is not None
+        else date.today()
+    )
+
+    target_date = (
+        execution_date
+        - timedelta(days=1)
+    )
+
+    def is_target_date(record: dict) -> bool:
+
+        entry_date = convert_to_date(
+            record.get("DATA_ENTRADA")
+        )
+
+        return entry_date == target_date
+
+    records = load_records(
+        NF_FISCAL_ENTRADA_PATH,
+        record_filter=is_target_date,
+    )
+
+    return records, target_date
+
+
+def load_relevant_base_records(
+    cigam_records: list[dict],
+) -> list[dict]:
+    if not cigam_records:
+        return []
+
+    relevant_invoice_keys = {
+        build_invoice_date_key(record)
+        for record in cigam_records
+    }
+
+    def is_relevant_invoice(record: dict) -> bool:
+
+        invoice_key = build_invoice_date_key(
+            record
+        )
+
+        return (
+            invoice_key
+            in relevant_invoice_keys
+        )
+
+    return load_records(
+        BASE_FISCAL_PATH,
+        record_filter=is_relevant_invoice,
     )
 
 
