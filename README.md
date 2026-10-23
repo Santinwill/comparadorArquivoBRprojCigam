@@ -89,6 +89,25 @@ Export
 
 Feche os arquivos de entrada e o relatório anterior no Excel antes da execução. Caso estejam abertos, o Windows poderá bloquear o acesso e gerar `PermissionError`.
 
+## Processamento diário 
+
+O comparador utiliza somente os registros de `NF_FISCAL_ENTRADA.xlsx` cuja coluna `DATA_ENTRADA` corresponda ao dia anterior à execução. A data é calculada com: 
+
+```text 
+data de processamento = data atual da máquina - 1 dia
+```
+
+## Carregamento seletivo da Base Fiscal 
+
+Depois de filtrar o arquivo do CIGAM pela `DATA_ENTRADA`, o sistema cria a relação das notas que precisam ser comparadas. A Base Fiscal é percorrida em modo de leitura, mas somente as linhas relacionadas às notas do conjunto diário são mantidas em memória. Isso evita armazenar registros da Base Fiscal que não participam da execução atual. O filtro da Base Fiscal utiliza a chave da nota: 
+
+```text 
+CD_UNI_NEG 
++ NF 
++ CNPJ_CPF 
++ DATA_EMISSAO
+```
+
 ## Execução
 
 O ponto oficial de execução é o arquivo `main.py`.
@@ -112,35 +131,53 @@ py -m src.excel_exporter
 ```text
 main.py
   ↓
+remove o relatório anterior, se existir
+  ↓
 src.matcher
+  ↓
+filtra o CIGAM por DATA_ENTRADA = ontem
+  ↓
+carrega somente a Base Fiscal relevante
   ↓
 src.comparator
   ↓
 src.excel_exporter
   ↓
 output/Fiscal_Comparison.xlsx
+  ↓
+limpa os arquivos configurados após sucesso
 ```
 
 O processo completo:
 
-1. carrega os arquivos de entrada;
-2. normaliza os identificadores usados no matching;
-3. agrupa os registros por nota;
-4. realiza o matching um-para-um dos itens;
-5. compara os campos fiscais;
-6. separa divergências confirmadas e revisão pendente;
-7. gera o relatório Excel final.
+1. verifica se existe um relatório anterior;
+2. exclui output/Fiscal_Comparison.xlsx, caso exista;
+3. calcula a data anterior à execução;
+4. carrega somente as linhas do CIGAM cuja DATA_ENTRADA corresponde à data calculada;
+5. identifica as notas que devem ser comparadas;
+6. carrega somente os registros relevantes da Base Fiscal;
+7. normaliza os identificadores utilizados no matching;
+8. realiza o matching um-para-um dos itens;
+9. compara os campos fiscais;
+10. separa divergências confirmadas e revisão pendente;
+11. gera o relatório Excel;
+12. exclui os arquivos configurados somente após a conclusão completa e sem erros.
 
 ## Módulos principais
 
 ### `main.py`
 
-Ponto único de execução. Trata mensagens de sucesso e erros comuns, como:
+Ponto único de execução e controle do processo. 
+O módulo é responsável por: 
 
-- arquivo de entrada não encontrado;
-- arquivo aberto ou bloqueado;
-- erro de validação;
-- erro inesperado.
+- verificar a existência do relatório anterior; 
+- excluir o relatório anterior antes de uma nova execução; 
+- iniciar o processamento diário; 
+- tratar erros de arquivo ausente; 
+- tratar arquivos abertos ou bloqueados; 
+- tratar erros de validação; 
+- excluir os arquivos de entrada configurados somente após sucesso; 
+- preservar os arquivos de entrada se qualquer erro ocorrer.
 
 O processo retorna:
 
@@ -164,7 +201,16 @@ A normalização não deve esconder divergências fiscais reais.
 
 ### `src/matcher.py`
 
-Executa o matching um-para-um. Cada linha da Base Fiscal e cada linha do CIGAM pode ser utilizada no máximo uma vez.
+Responsável por: 
+
+- converter valores de data lidos do Excel; 
+- calcular a data usada no processamento diário; 
+- filtrar `NF_FISCAL_ENTRADA.xlsx` pela coluna `DATA_ENTRADA`; 
+- carregar somente os registros relevantes da Base Fiscal; 
+- executar o matching um-para-um; 
+- garantir que cada linha da Base Fiscal e do CIGAM seja utilizada no máximo uma vez.
+
+O carregamento utiliza `read_only=True` e mantém em memória somente os registros necessários para a execução atual.
 
 ### `src/comparison_rules.py`
 
