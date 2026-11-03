@@ -169,6 +169,33 @@ def load_daily_cigam_records(
     return records, target_date
 
 
+def load_period_cigam_records(
+    start_date: date,
+    end_date: date,
+) -> tuple[list[dict], date, date]:
+    if start_date > end_date:
+        raise ValueError(
+            "A data inicial não pode ser maior que a data final."
+        )
+
+    def is_within_period(record: dict) -> bool:
+        entry_date = convert_to_date(
+            record.get("DATA_ENTRADA")
+        )
+
+        if entry_date is None:
+            return False
+
+        return start_date <= entry_date <= end_date
+
+    records = load_records(
+        NF_FISCAL_ENTRADA_PATH,
+        record_filter=is_within_period,
+    )
+
+    return records, start_date, end_date
+
+
 def load_relevant_base_records(
     cigam_records: list[dict],
 ) -> list[dict]:

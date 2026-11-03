@@ -19,14 +19,23 @@ from .comparator import (
 from .matcher import (
     analyze_all_records,
     load_daily_cigam_records,
+    load_period_cigam_records,
     load_relevant_base_records,
 )
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 OUTPUT_DIR = PROJECT_ROOT / "output"
-
 OUTPUT_FILE = OUTPUT_DIR / "Fiscal_Comparison.xlsx"
+
+# ============================================================
+# para utilizar peiodo predeterminado comentar o daily e utilizar o monthly, depois ajustar as datas
+# ============================================================
+# REPORT_MODE = "DAILY"
+REPORT_MODE = "MONTHLY"
+REPORT_START_DATE = date(2026, 10, 1)
+REPORT_END_DATE = date(2026, 10, 31)
+
 INTEGER_NUMERIC_FORMAT = "0"
 DECIMAL_NUMERIC_FORMAT = "0.###############################"
 
@@ -1118,25 +1127,69 @@ def create_workbook(
 
 
 def main():
-
     OUTPUT_DIR.mkdir(
         parents=True,
         exist_ok=True,
     )
 
-    print(
-        "Carregando registros do CIGAM "
-        "referentes ao dia anterior..."
-    )
+    print()
+    print("=" * 80)
+    print("CONFIGURAÇÃO DO RELATÓRIO")
+    print("=" * 80)
 
-    cigam_records, target_date = (
-        load_daily_cigam_records()
-    )
+    if REPORT_MODE == "DAILY":
+        print("Modo de processamento: DIÁRIO")
+        print(
+            "Carregando registros do CIGAM "
+            "referentes ao dia anterior..."
+        )
 
-    print(
-        f"Data de entrada considerada: "
-        f"{target_date.strftime('%d/%m/%Y')}"
-    )
+        cigam_records, target_date = (
+            load_daily_cigam_records()
+        )
+
+        period_description = (
+            target_date.strftime("%d/%m/%Y")
+        )
+
+        print(
+            f"Data de entrada considerada: "
+            f"{period_description}"
+        )
+
+    elif REPORT_MODE == "MONTHLY":
+        print("Modo de processamento: MENSAL")
+        print(
+            "Carregando registros do CIGAM "
+            "referentes ao período informado..."
+        )
+
+        (
+            cigam_records,
+            start_date,
+            end_date,
+        ) = load_period_cigam_records(
+            REPORT_START_DATE,
+            REPORT_END_DATE,
+        )
+
+        period_description = (
+            f"{start_date.strftime('%d/%m/%Y')} "
+            f"até "
+            f"{end_date.strftime('%d/%m/%Y')}"
+        )
+
+        print(
+            f"Período de entrada considerado: "
+            f"{period_description}"
+        )
+
+    else:
+        raise ValueError(
+            f"REPORT_MODE inválido: "
+            f"{REPORT_MODE!r}. "
+            f"Utilize 'DAILY' ou 'MONTHLY'."
+        )
 
     print(
         f"Registros CIGAM encontrados: "
@@ -1144,7 +1197,6 @@ def main():
     )
 
     if cigam_records:
-
         print(
             "Carregando somente os registros relevantes "
             "da Base Fiscal..."
@@ -1162,9 +1214,9 @@ def main():
         )
 
     else:
-
         print(
-            "Nenhum registro encontrado para a data."
+            "Nenhum registro encontrado "
+            "para o período."
         )
 
         print(
@@ -1204,11 +1256,21 @@ def main():
     print("ARQUIVO GERADO")
     print("=" * 80)
     print(OUTPUT_FILE)
-
     print()
+
     print(
-        f"Data processada: "
-        f"{target_date.strftime('%d/%m/%Y')}"
+        f"Modo processado: "
+        f"{REPORT_MODE}"
+    )
+
+    print(
+        f"Período processado: "
+        f"{period_description}"
+    )
+
+    print(
+        f"Registros CIGAM processados: "
+        f"{len(cigam_records)}"
     )
 
     print(
@@ -1235,6 +1297,7 @@ def main():
         f"Unused Base: "
         f"{len(comparison_results['unused_base'])}"
     )
+
 
 if __name__ == "__main__":
     main()
